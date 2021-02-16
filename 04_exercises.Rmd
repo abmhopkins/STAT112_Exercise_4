@@ -196,13 +196,60 @@ starbucks_with_2018_pop_est <-
 
   6. **`dplyr` review**: Look through the code above and describe what each line of code does.
 
+1 - Loads a csv file from dropbox and renames the resulting data frame 'census_pop_est_2018'
+2 - In the original file, the state names have a dot in front of them, this separates that into a dot variable and a state variable (without the dot). The extra controls what to do if there are too many pieces.
+3 - Selects everything except the dot column
+4 - Creates a new state column (overwrites the old one), where the state names are now lowercase
+5 - blank
+6 - Renames the resulting data frame 'starbucks_with_2018_pop_est'
+7 - Tells R to use the 'starbucks_us_by_state' data frame
+8 - Joins the Starbucks data with the census data from above, by the state name
+9 - Creates a new variable 'starbucks_per_10000' which is the number of starbucks divided by the population multiplied by 10,000
+
   7. Create a choropleth map that shows the number of Starbucks per 10,000 people on a map of the US. Use a new fill color, add points for all Starbucks in the US (except Hawaii and Alaska), add an informative title for the plot, and include a caption that says who created the plot (you!). Make a conclusion about what you observe.
+  
+```{r}
+us_map <- map_data("state")
+
+starbucks_with_2018_pop_est %>% 
+  ggplot() +
+  geom_map(map = us_map,
+           aes(map_id = state_name,
+               fill = starbucks_per_10000)) +
+  geom_point(data = Starbucks %>% filter(Country == "US", `State/Province` != "HI", `State/Province` != "AK"),
+             aes(x = Longitude,
+             y = Latitude),
+             size = .25) +
+  expand_limits(x = us_map$long, y = us_map$lat) + 
+  theme_map() +
+  labs(title = "Number of Starbucks per 10,000 people across the US",
+       caption = "Visual: Alexander Hopkins",
+       fill = "Starbucks/10,000") +
+  scale_fill_viridis_c() +
+  theme(legend.background = element_blank())
+```
+  
+  The Western States have more Starbucks per 10,000 people than other parts of the country. The East Coast appears to have a lot of Starbucks but they are spread over different states. West Virginia, Mississippi and Vermont have the fewest Starbucks per 10,000.
 
 ### A few of your favorite things (`leaflet`)
 
   8. In this exercise, you are going to create a single map of some of your favorite places! The end result will be one map that satisfies the criteria below. 
 
   * Create a data set using the `tibble()` function that has 10-15 rows of your favorite places. The columns will be the name of the location, the latitude, the longitude, and a column that indicates if it is in your top 3 favorite locations or not. For an example of how to use `tibble()`, look at the `favorite_stp_by_lisa` I created in the data R code chunk at the beginning.  
+  
+```{r}
+fav_plaes <- tibble(
+  place = c("Home", "Macalester College", "Adams Spanish Immersion", 
+            "Spirit Gymnastics", "Bama & Bapa", "Now Bikes",
+            "Dance Spectrum", "Pizza Luce", "Brunson's"),
+  long = c(-93.1405743, -93.1712321, -93.1451796, 
+           -93.1650563, -93.1542883, -93.1696608, 
+           -93.1393172, -93.1524256, -93.0753863),
+  lat = c(44.950576, 44.9378965, 44.9237914,
+          44.9654609, 44.9295072, 44.9436813, 
+          44.9399922, 44.9468848, 44.9700727)
+  )
+```
 
   * Create a `leaflet` map that uses circles to indicate your favorite places. Label them with the name of the place. Choose the base map you like best. Color your 3 favorite places differently than the ones that are not in your top 3 (HINT: `colorFactor()`). Add a legend that explains what the colors mean.  
   
@@ -233,22 +280,66 @@ Stations<-read_csv("http://www.macalester.edu/~dshuman1/data/112/DC-Stations.csv
 ```
 
   9. Use the latitude and longitude variables in `Stations` to make a visualization of the total number of departures from each station in the `Trips` data. Use either color or size to show the variation in number of departures. This time, plot the points on top of a map. Use any of the mapping tools you'd like.
+```{r}
+dc_map <- get_stamenmap(
+    bbox = c(left = -77.4032, bottom = 38.7319, right = -76.6547, top = 39.0771), 
+    maptype = "terrain",
+    zoom = 11)
+```
+  
   
 ```{r}
+trip_station <- Trips %>% 
+  group_by(sstation) %>% 
+  summarise(num_departures = n()) %>% 
+  left_join(Stations, by = c("sstation" = "name"))
 
+ggmap(dc_map) +
+  geom_point(data = trip_station, 
+            aes(x = long, y = lat, color = num_departures), size = 1) +
+  scale_color_viridis_c(option = "inferno") +
+  theme_map() +
+  theme(legend.background = element_blank()) +
+  labs(title = "Number of departures from each station",
+       x = "",
+       y = "",
+       color = "Number of Departures")
 ```
   
   10. Only 14.4% of the trips in our data are carried out by casual users. Create a plot that shows which area(s) have stations with a much higher percentage of departures by casual users. What patterns do you notice? Also plot this on top of a map. I think it will be more clear what the patterns are.
   
 ```{r}
-
+trip_station_prop <- Trips %>% 
+  group_by(sstation, client) %>% 
+  summarise(num_departures = n()) %>% 
+  mutate(total_departures = sum(num_departures),
+         percent_casual = ifelse(client == "Casual", num_departures/total_departures, 0)) %>% 
+  filter(percent_casual != 0) %>% 
+  left_join(Stations, by = c("sstation" = "name"))
+ 
+ggmap(dc_map) +
+  geom_point(data = trip_station_prop, 
+            aes(x = long, y = lat, color = percent_casual), size = 1) +
+  scale_color_viridis_c(option = "inferno") +
+  theme_map() +
+  theme(legend.background = element_blank()) +
+  labs(title = "Number of departures from each station",
+       x = "",
+       y = "",
+       color = "Number of Departures")
 ```
+  
+  The locations with the highest proportion of casual riders are all around the National Mall. This suggests that they could be tourists, borrowing the bikes for a day of site seeing.
   
 ### COVID-19 data
 
 The following exercises will use the COVID-19 data from the NYT.
 
   11. Create a map that colors the states by the most recent cumulative number of COVID-19 cases (remember, these data report cumulative numbers so you don't need to compute that). Describe what you see. What is the problem with this map?
+```{r}
+covid19
+```
+  
   
   12. Now add the population of each state to the dataset and color the states by most recent cumulative cases/10,000 people. See the code for doing this with the Starbucks data. You will need to make some modifications. 
   
