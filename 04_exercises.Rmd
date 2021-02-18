@@ -12,7 +12,7 @@ output:
 
 
 ```{r setup, include=FALSE}
-#knitr::opts_chunk$set(echo = TRUE, error=TRUE, message=FALSE, warning=FALSE)
+knitr::opts_chunk$set(echo = TRUE, error=TRUE, message=FALSE, warning=FALSE)
 ```
 
 ```{r libraries}
@@ -108,10 +108,10 @@ ggmap(world_map) +
   geom_point(data = Starbucks, 
             aes(x = Longitude, y = Latitude, color = `Ownership Type`),
             size = .3) +
-  scale_color_viridis_d() +
+  scale_color_brewer(palette = "Set1") +
   theme_map() +
   theme(legend.background = element_blank(),
-        legend.key = element_rect("grey50")) +
+        legend.key = element_rect("#99B3CC")) +
   labs(title = "Starbucks locations across the world")
 ```
 
@@ -238,18 +238,57 @@ starbucks_with_2018_pop_est %>%
   * Create a data set using the `tibble()` function that has 10-15 rows of your favorite places. The columns will be the name of the location, the latitude, the longitude, and a column that indicates if it is in your top 3 favorite locations or not. For an example of how to use `tibble()`, look at the `favorite_stp_by_lisa` I created in the data R code chunk at the beginning.  
   
 ```{r}
-fav_plaes <- tibble(
-  place = c("Boston Home", "Bukhara","Johannesburg Home", "Hilton College", 
-            "Eton College", "Jon Simon's", "Macalester College",
-            "Blossom Bar", "Grandma Anne and Papa's", "Grandma B's", "Indochin"),
-  long = c(-71.1029932, ),
-  lat = c(42.3218395, )
+fav_places <- tibble(
+  place = c("Boston Home", "Grandma B's", "Grandma Anne and Papa's","Bukhara","Johannesburg Home", "Hilton College", 
+            "Eton College", "Jon Simon's", "Macalester College", "Blossom Bar"),
+  long = c(-71.1029932, -76.2948954,  -121.94976, -71.117249, 28.030031, 
+           30.301689, -0.610654, 6.146601, -93.170135, -71.1194),
+  lat = c(42.3218395, 39.4824478,  37.556892, 42.308975, -26.115339, 
+          -29.492512, 51.493279, 46.201756, 44.937656, 42.333405),
+  top_3_fav = c("Yes","No","No","No","Yes","No","No","No","Yes","No")
   )
 ```
 
   * Create a `leaflet` map that uses circles to indicate your favorite places. Label them with the name of the place. Choose the base map you like best. Color your 3 favorite places differently than the ones that are not in your top 3 (HINT: `colorFactor()`). Add a legend that explains what the colors mean.  
   
+```{r}
+pal <- colorFactor(c("darkgreen", "red"),
+                  domain = fav_places$top_3_fav)
+
+leaflet(data = fav_places) %>% 
+  addProviderTiles(providers$Stamen.Terrain) %>% 
+  addCircleMarkers(lng = ~long,
+             lat = ~lat,
+             radius = .5,
+             color = ~pal(top_3_fav),
+             label = ~place) %>% 
+  addLegend("bottomleft",
+            pal = pal,
+            values = ~top_3_fav,
+            title = "Top 3 Favorite Place?") 
+```
+  
+  
   * Connect all your locations together with a line in a meaningful way (you may need to order them differently in the original data).  
+  
+```{r}
+pal <- colorFactor(c("darkgreen", "red"),
+                  domain = fav_places$top_3_fav)
+
+leaflet(data = fav_places) %>% 
+  addProviderTiles(providers$Stamen.Terrain) %>% 
+  addCircleMarkers(lng = ~long,
+             lat = ~lat,
+             radius = .5,
+             color = ~pal(top_3_fav),
+             label = ~place) %>% 
+  addPolylines(data = fav_places, lng = ~long, lat = ~lat) %>% 
+  addLegend("bottomleft",
+            pal = pal,
+            values = ~top_3_fav,
+            title = "Top 3 Favorite Place?")
+```
+  
   
   * If there are other variables you want to add that could enhance your plot, do that now.  
   
@@ -355,8 +394,6 @@ covid19 %>%
   12. Now add the population of each state to the dataset and color the states by most recent cumulative cases/10,000 people. See the code for doing this with the Starbucks data. You will need to make some modifications. 
   
 ```{r}
-options(scipen = 7)
-
 covid_with_2018_pop_est <-
   covid19 %>% 
   group_by(state) %>% 
@@ -379,6 +416,36 @@ covid_with_2018_pop_est %>%
 ```
   
   13. **CHALLENGE** Choose 4 dates spread over the time period of the data and create the same map as in exercise 12 for each of the dates. Display the four graphs together using faceting. What do you notice?
+  
+```{r}
+covid_with_2018_pop_est_more_dates <-
+  covid19 %>% 
+  group_by(state) %>% 
+  mutate(state = str_to_lower(state)) %>% 
+  filter(date == max(date) |
+           date == as.Date("2020-07-04")|
+           date == as.Date("2020-11-26")|
+           date == as.Date("2021-01-01")) %>% 
+  left_join(census_pop_est_2018, by = "state") %>% 
+  mutate(cases_per_10000 = (cases/est_pop_2018)*10000)
+
+covid_with_2018_pop_est_more_dates %>% 
+  ggplot() +
+  geom_map(map = us_map,
+           aes(map_id = state,
+               fill = cases_per_10000)) +
+  expand_limits(x = us_map$long, y = us_map$lat) + 
+  theme_map() +
+  labs(title = "COVID19 cases per 10,000 by state",
+       subtitle = "Looking at four different dates during the pandemic",
+       fill = "") +
+  scale_fill_viridis_c() +
+  facet_wrap(vars(date)) +
+  theme(legend.background = element_blank(),
+        legend.position = "right")
+```
+  
+  Over the course of the dates, the states have increasing amounts of cases per 10,000 people. In particular, the Dakotas stand out as increasing in the number of cases, even from New Years until today. Maine, Vermont, Oregon, and Washington appear to have had the smallest increase since Thanksgiving.
   
 ## Minneapolis police stops
 
@@ -404,7 +471,20 @@ mpls_suspicious
   15. Use a `leaflet` map and the `MplsStops` dataset to display each of the stops on a map as a small point. Color the points differently depending on whether they were for suspicious vehicle/person or a traffic stop (the `problem` variable). HINTS: use `addCircleMarkers`, set `stroke = FAlSE`, use `colorFactor()` to create a palette.  
   
 ```{r}
+pal_sus <- colorFactor(palette = "Accent",
+                       domain = MplsStops$problem)
 
+leaflet(data = MplsStops) %>% 
+  addProviderTiles(providers$Stamen.TonerLite) %>% 
+  addCircleMarkers(lng = ~long,
+             lat = ~lat,
+             radius = .5,
+             color = ~pal_sus(problem),
+             stroke = FALSE) %>% 
+  addLegend("bottomleft",
+            pal = pal_sus,
+            values = ~problem,
+            title = "Reason for Stop")
 ```
   
   
@@ -415,19 +495,58 @@ mpls_nbhd <- st_read("Minneapolis_Neighborhoods/Minneapolis_Neighborhoods.shp", 
 ```
 
 ```{r}
-mpls_all <- MplsDemo %>% 
-  left_join(mpls_suspicious, by = "neighborhood") %>% 
-  left_join(mpls_nbhd, by = c("neighborhood" = "BDNAME"))
+mpls_all <- mpls_nbhd %>% 
+  left_join(MplsDemo, by = c("BDNAME" = "neighborhood")) %>% 
+  left_join(mpls_suspicious, by = c("BDNAME" = "neighborhood"))
 ```
 
   17. Use `leaflet` to create a map from the `mpls_all` data  that colors the neighborhoods by `prop_suspicious`. Display the neighborhood name as you scroll over it. Describe what you observe in the map.
   
+```{r}
+pal_prop_sus <- colorNumeric("viridis",
+                       domain = mpls_all$prop_sus)
+
+leaflet(mpls_all) %>% 
+  addTiles() %>% 
+  addPolygons(label = ~str_to_title(BDNAME),
+              fillColor = ~pal_prop_sus(prop_sus),
+              fillOpacity = .7,
+              stroke = FALSE) %>% 
+  addLegend("bottomleft",
+            pal = pal_prop_sus,
+            values = ~prop_sus,
+            title = "Proportion of Suspicious Stops")
+```
+  
+  It appears that a high proportion of suspicious stops happen in South Eastern Minneapolis, while the North East has the lowest proportion. Morris Park in particular has a very high proportion of suspicious stops.
+  
   18. Use `leaflet` to create a map of your own choosing. Come up with a question you want to try to answer and use the map to help answer that question. Describe what your map shows. 
   
+```{r}
+pal_hhincome <- colorNumeric("viridis",
+                       domain = mpls_all$hhIncome)
+
+leaflet(mpls_all) %>% 
+  addTiles() %>% 
+  addPolygons(label = ~str_to_title(BDNAME),
+              fillColor = ~pal_hhincome(hhIncome),
+              fillOpacity = .7,
+              stroke = FALSE,
+              highlight = highlightOptions(color = "black",
+                               fillOpacity = .9,
+                               bringToFront = FALSE)) %>% 
+  addLegend("bottomleft",
+            pal = pal_hhincome,
+            values = ~(hhIncome) ,
+            title = "Household Income")
+```
+  
+  I wanted to look at which neighborhoods had the highest median household income. Page, Fulton, Lynnhurst, Kenwood, and Cedar - Isles - Dean are the most affluent neighborhoods. (they also have very few traffic stops.)
   
 ## GitHub link
 
   19. Below, provide a link to your GitHub page with this set of Weekly Exercises. Specifically, if the name of the file is 04_exercises.Rmd, provide a link to the 04_exercises.md file, which is the one that will be most readable on GitHub.
 
+https://github.com/abmhopkins/STAT112_Exercise_4/blob/main/04_exercises.md
 
 **DID YOU REMEMBER TO UNCOMMENT THE OPTIONS AT THE TOP?**
